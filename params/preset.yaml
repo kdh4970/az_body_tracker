@@ -1,0 +1,27 @@
+!!python/object/new:dynamic_reconfigure.encoding.Config
+dictitems:
+  groups: !!python/object/new:dynamic_reconfigure.encoding.Config
+    dictitems:
+      groups: !!python/object/new:dynamic_reconfigure.encoding.Config
+        state: []
+      id: 0
+      name: Default
+      parameters: !!python/object/new:dynamic_reconfigure.encoding.Config
+        state: []
+      parent: 0
+      pitch: 126.0
+      roll: 1.8
+      state: true
+      type: ''
+      x: 0.0
+      y: -2.0
+      yaw: 9.0
+      z: 1.5
+    state: []
+  pitch: 126.0
+  roll: 1.8
+  x: 0.0
+  y: -2.0
+  yaw: 9.0
+  z: 1.5
+state: []

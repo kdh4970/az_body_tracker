@@ -1,0 +1,9 @@
+<launch>
+    <master auto="start"/>
+    <node pkg="az_body_tracker" name="az_body_tracker" type="az_body_tracker" output="screen">
+        <rosparam file="$(find az_body_tracker)/params/params.yaml" command="load" />
+    </node>
+    <!-- <node pkg="az_body_tracker" name="tf_controller" type="transform_controller.py" output="screen"/> -->
+    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find az_body_tracker)/cfg/bt_rviz.rviz" />
+    <node type="rqt_gui" name="rqt_gui" pkg="rqt_gui" output="screen" />
+</launch>
