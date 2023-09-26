@@ -2,7 +2,7 @@
 
 
 TrackerNode::TrackerNode(ros::NodeHandle& _nh)
-:debug(true),nh(_nh),pub_frame("depth_camera_link")
+:debug(true),nh(_nh),pub_frame("map")
 {
 	bt_pub = nh.advertise<azbt_msgs::bt_data>("bt_result",1);
 	pcl_pub = nh.advertise<sensor_msgs::PointCloud2>("depth_pcl",1);

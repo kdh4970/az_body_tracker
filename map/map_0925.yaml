@@ -1,6 +1,6 @@
-image: /home/jskimlab1804/catkin_ws/src/az_body_tracker/map/map_0925.pgm
+image: /home/kist/catkin_ws1/src/az_body_tracker/map/map_0925.pgm
 resolution: 0.050000
-origin: [-10.000000, -10.000000, 0.000000]
+origin: [0.000000, 0.000000, 3.141592]
 negate: 0
 occupied_thresh: 0.65
 free_thresh: 0.196
