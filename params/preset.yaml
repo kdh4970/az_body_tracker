@@ -9,19 +9,21 @@ dictitems:
       parameters: !!python/object/new:dynamic_reconfigure.encoding.Config
         state: []
       parent: 0
-      pitch: 136.79999999999998
+      pitch: 138.0
       roll: 0.0
+      scale: 1.0
       state: true
       type: ''
       x: 0.0
       y: -2.0
       yaw: -1.8
-      z: 1.9
+      z: 1930.0
     state: []
-  pitch: 136.79999999999998
+  pitch: 138.0
   roll: 0.0
+  scale: 1.0
   x: 0.0
   y: -2.0
   yaw: -1.8
-  z: 1.9
+  z: 1930.0
 state: []
