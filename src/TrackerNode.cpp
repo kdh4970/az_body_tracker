@@ -145,7 +145,6 @@ k4a_result_t TrackerNode::getBodyMarker(const k4abt_body_t& body, visualization_
 	marker_msg->scale.y = 0.05;
 	marker_msg->scale.z = 0.05;
 	
-	constexpr float kMillimeterToMeter = 1.0 / 1000.0f;
 	temp << position.v[0],
 			position.v[1],
 			position.v[2],
