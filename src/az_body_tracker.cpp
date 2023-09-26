@@ -5,9 +5,6 @@
 #include <map>
 #include <BodyTrackingHelpers.h>
 #include <Utilities.h>
-#ifdef ENABLE_DEFAULT_VISUALIZER
-#include <Window3dWrapper.h>
-#endif
 #include "TrackerNode.h"
 
 Eigen::Matrix4f Transform,Extr,ExtrDtoC,WorldtoMap;
@@ -23,59 +20,16 @@ bool tfupdateRequire = true;
         exit(1);                                                                                         \
     }                                                                                                    \
 
-
-#ifdef ENABLE_DEFAULT_VISUALIZER
-Visualization::Layout3d s_layoutMode = Visualization::Layout3d::OnlyMainView;
-Window3dWrapper window3d;
-bool s_visualizeJointFrame = false;
-void PrintAppUsage()
-{
-    printf("\n");
-    printf(" Basic Navigation:\n\n");
-    printf(" Rotate: Rotate the camera by moving the mouse while holding mouse left button\n");
-    printf(" Pan: Translate the scene by holding Ctrl key and drag the scene with mouse left button\n");
-    printf(" Zoom in/out: Move closer/farther away from the scene center by scrolling the mouse scroll wheel\n");
-    printf(" Select Center: Center the scene based on a detected joint by right clicking the joint with mouse\n");
-    printf("\n");
-    printf(" Key Shortcuts\n\n");
-    printf(" ESC: quit\n");
-    printf(" h: help\n");
-    printf(" b: body visualization mode\n");
-    printf(" k: 3d window layout\n");
-    printf("\n");
-}
-
-int64_t CloseCallback(void* /*context*/)
-{
+void kill_process(k4abt_tracker_t tracker, k4a_device_t device){
+    ROS_INFO("Killing Process...");
+    k4abt_tracker_shutdown(tracker);
+    k4abt_tracker_destroy(tracker);
+    k4a_device_stop_cameras(device);
+    k4a_device_close(device);
     ros::shutdown();
-    return 1;
+    
+    // exit(0);
 }
-
-int64_t ProcessKey(void* /*context*/, int key)
-{
-    // https://www.glfw.org/docs/latest/group__keys.html
-    switch (key)
-    {
-        // Quit
-    case GLFW_KEY_ESCAPE:
-        ros::shutdown();
-        break;
-    case GLFW_KEY_K:
-        s_layoutMode = (Visualization::Layout3d)(((int)s_layoutMode + 1) % (int)Visualization::Layout3d::Count);
-        break;
-    case GLFW_KEY_B:
-        s_visualizeJointFrame = !s_visualizeJointFrame;
-        break;
-    case GLFW_KEY_H:
-        PrintAppUsage();
-        break;
-    case GLFW_KEY_D:
-        debug = !debug;
-        break;
-    }
-    return 1;
-}
-#endif
 
 void readTransformPreset(ros::NodeHandle nh)
 {
@@ -98,6 +52,7 @@ void readTransformPreset(ros::NodeHandle nh)
             else if(preset_id=="x:") {t.x=preset_val; nh.setParam("az_body_tracker/x",preset_val);}
             else if(preset_id=="y:") {t.y=preset_val; nh.setParam("az_body_tracker/y",preset_val);}
             else if(preset_id=="z:") {t.z=preset_val; nh.setParam("az_body_tracker/z",preset_val);}
+            else if(preset_id=="scale:") {t.scale=preset_val; nh.setParam("az_body_tracker/scale",preset_val);}
         }
         readFile.close();
     }
@@ -112,6 +67,7 @@ void param_callback(az_body_tracker::az_body_trackerConfig &config, uint32_t lev
     t.x=config.x;
     t.y=config.y;
     t.z=config.z;
+    t.scale=config.scale;
 	if(debug) ROS_INFO("parameter callback >> roll %f, pitch %f, yaw %f",t.roll,t.pitch,t.yaw);
     tfupdateRequire = true;
 }
@@ -138,29 +94,6 @@ void VisualizeResult(k4abt_frame_t bodyFrame, k4a_transformation_t transformatio
     //gen msg
     azbt_msgs::bt_data msg;
     visualization_msgs::MarkerArrayPtr markerArrayPtr(new visualization_msgs::MarkerArray);
-
-    #ifdef ENABLE_DEFAULT_VISUALIZER
-    std::vector<Color> pointCloudColors(depthWidth * depthHeight, { 1.f, 1.f, 1.f, 1.f });
-    // Read body index map and assign colors
-    k4a_image_t bodyIndexMap = k4abt_frame_get_body_index_map(bodyFrame);
-    const uint8_t* bodyIndexMapBuffer = k4a_image_get_buffer(bodyIndexMap);
-    
-    for (int i = 0; i < depthWidth * depthHeight; i++)
-    {
-        uint8_t bodyIndex = bodyIndexMapBuffer[i];
-        if (bodyIndex != K4ABT_BODY_INDEX_MAP_BACKGROUND)
-        {
-            uint32_t bodyId = k4abt_frame_get_body_id(bodyFrame, bodyIndex);
-            pointCloudColors[i] = g_bodyColors[bodyId % g_bodyColors.size()];
-        }
-    }
-    k4a_image_release(bodyIndexMap);
-    // Visualize point cloud
-    window3d.UpdatePointClouds(depthImage, pointCloudColors);
-
-    // Visualize the skeleton data
-    window3d.CleanJointsAndBones();
-    #endif
     
     if(numBodies == 0){
         // std_msgs::Float32 msg;
@@ -180,60 +113,17 @@ void VisualizeResult(k4abt_frame_t bodyFrame, k4a_transformation_t transformatio
         VERIFY(k4abt_frame_get_body_skeleton(bodyFrame, i, &body.skeleton), "Get skeleton from body frame failed!");
         body.id = k4abt_frame_get_body_id(bodyFrame, i);
 
-        #ifdef ENABLE_DEFAULT_VISUALIZER
-        // Assign the correct color based on the body id
-        Color color = g_bodyColors[body.id % g_bodyColors.size()];
-        color.a = 0.4f;
-        Color lowConfidenceColor = color;
-        lowConfidenceColor.a = 0.1f;
-
-        Color color2; // pelvis
-        color2.r = 1.0f; color2.g = 0.0f; color2.b = 0.0f; color2.a = 1.0f;
-
-        Color color3; // head
-        color3.r = 0.0f; color3.g = 1.0f; color3.b = 0.0f; color3.a = 1.0f;
-
-        Color color4; // foot
-        color4.r = 0.0f; color4.g = 0.0f; color4.b = 1.0f; color4.a = 1.0f;
-        #endif
         // Visualize joints
         for (int joint = 0; joint < static_cast<int>(K4ABT_JOINT_COUNT); joint++)
         {
             if (body.skeleton.joints[joint].confidence_level >= K4ABT_JOINT_CONFIDENCE_LOW)
             {
-                #ifdef ENABLE_DEFAULT_VISUALIZER
-                const k4a_float3_t& jointPosition = body.skeleton.joints[joint].position;
-                const k4a_quaternion_t& jointOrientation = body.skeleton.joints[joint].orientation;
-                window3d.AddJoint(
-                    jointPosition,
-                    jointOrientation,
-                    body.skeleton.joints[joint].confidence_level >= K4ABT_JOINT_CONFIDENCE_MEDIUM ? color : lowConfidenceColor);
-                #endif
-
                 visualization_msgs::MarkerPtr markerPtr(new visualization_msgs::Marker);
                 node->getBodyMarker(body, markerPtr, joint, capture_time);
                 markerArrayPtr->markers.push_back(*markerPtr);
             }
         }
-        #ifdef ENABLE_DEFAULT_VISUALIZER
-        // for debug 
-        window3d.AddJoint(
-                    body.skeleton.joints[K4ABT_JOINT_PELVIS].position,
-                    body.skeleton.joints[K4ABT_JOINT_PELVIS].orientation,
-                    body.skeleton.joints[K4ABT_JOINT_PELVIS].confidence_level >= K4ABT_JOINT_CONFIDENCE_MEDIUM ? color2 : lowConfidenceColor);
-        window3d.AddJoint(
-                    body.skeleton.joints[K4ABT_JOINT_HEAD].position,
-                    body.skeleton.joints[K4ABT_JOINT_HEAD].orientation,
-                    body.skeleton.joints[K4ABT_JOINT_HEAD].confidence_level >= K4ABT_JOINT_CONFIDENCE_MEDIUM ? color3 : lowConfidenceColor);
-        window3d.AddJoint(
-                    body.skeleton.joints[K4ABT_JOINT_FOOT_LEFT].position,
-                    body.skeleton.joints[K4ABT_JOINT_FOOT_LEFT].orientation,
-                    body.skeleton.joints[K4ABT_JOINT_FOOT_LEFT].confidence_level >= K4ABT_JOINT_CONFIDENCE_MEDIUM ? color4 : lowConfidenceColor);
-        window3d.AddJoint(
-                    body.skeleton.joints[K4ABT_JOINT_FOOT_RIGHT].position,
-                    body.skeleton.joints[K4ABT_JOINT_FOOT_RIGHT].orientation,
-                    body.skeleton.joints[K4ABT_JOINT_FOOT_RIGHT].confidence_level >= K4ABT_JOINT_CONFIDENCE_MEDIUM ? color4 : lowConfidenceColor);
-        #endif
+        
         k4a_float3_t JointHead=body.skeleton.joints[K4ABT_JOINT_HEAD].position;
         if(debug){
             // ROS_INFO("Joint PELVIS Position: x: %f, y: %f, z: %f", body.skeleton.joints[K4ABT_JOINT_PELVIS].position.v[0], body.skeleton.joints[K4ABT_JOINT_PELVIS].position.v[1], body.skeleton.joints[K4ABT_JOINT_PELVIS].position.v[2]);
@@ -249,12 +139,10 @@ void VisualizeResult(k4abt_frame_t bodyFrame, k4a_transformation_t transformatio
         //     body.skeleton.joints[K4ABT_JOINT_HEAD].position,
         //     joint_in_color_3d);
             
-        DepthJointHead << JointHead.v[0]/1000.0f,JointHead.v[1]/1000.0f,JointHead.v[2]/1000.0f,1.0f;
+        DepthJointHead << JointHead.v[0],JointHead.v[1],JointHead.v[2],1.0f;
         // world = Extr.inverse() * DepthJointHead;
         world = node->transform * DepthJointHead;
         
-
-
         // estimate body length in world coordinate : ground_to_chessboard + chessboard_to_head + head_to_top
         if(debug){
             ROS_INFO("world Head : %f, %f, %f, %f\n",world[0],world[1],world[2],world[3]);
@@ -263,30 +151,11 @@ void VisualizeResult(k4abt_frame_t bodyFrame, k4a_transformation_t transformatio
         // publish data
         azbt_msgs::Elem elem;
         elem.body_id= body.id;
-        elem.length = world[2]*1000;
+        elem.length = ((world[2]*1000) / t.scale)+100;
         elem.location_x = world[0]*1000;
         elem.location_y = world[1]*1000;
         msg.data.push_back(elem);
-        
-        #ifdef ENABLE_DEFAULT_VISUALIZER
-        // Visualize bones
-        for (size_t boneIdx = 0; boneIdx < g_boneList.size(); boneIdx++)
-        {
-            k4abt_joint_id_t joint1 = g_boneList[boneIdx].first;
-            k4abt_joint_id_t joint2 = g_boneList[boneIdx].second;
-
-            if (body.skeleton.joints[joint1].confidence_level >= K4ABT_JOINT_CONFIDENCE_LOW &&
-                body.skeleton.joints[joint2].confidence_level >= K4ABT_JOINT_CONFIDENCE_LOW)
-            {
-                bool confidentBone = body.skeleton.joints[joint1].confidence_level >= K4ABT_JOINT_CONFIDENCE_MEDIUM &&
-                    body.skeleton.joints[joint2].confidence_level >= K4ABT_JOINT_CONFIDENCE_MEDIUM;
-                const k4a_float3_t& joint1Position = body.skeleton.joints[joint1].position;
-                const k4a_float3_t& joint2Position = body.skeleton.joints[joint2].position;
-
-                window3d.AddBone(joint1Position, joint2Position, confidentBone ? color : lowConfidenceColor);
-            }
-        }
-        #endif
+        ROS_INFO("Target Length : %.2f",((world[2]*1000) / t.scale)+100);
     }
 
 
@@ -327,17 +196,13 @@ void PlayFromDevice(InputSettings inputSettings, std::shared_ptr<TrackerNode> no
     // trackerConfig.model_path = inputSettings.ModelPath.c_str();
     VERIFY(k4abt_tracker_create(&sensorCalibration, trackerConfig, &tracker), "Body tracker initialization failed!"); ROS_INFO("Body tracker initialization succeeded.");
     
-    #ifdef ENABLE_DEFAULT_VISUALIZER
-    // Initialize the 3d window controller
-    window3d.Create("3D Visualization", sensorCalibration);
-    window3d.SetCloseCallback(CloseCallback);
-    window3d.SetKeyCallback(ProcessKey);
-    ROS_INFO("3D visualization window initialization succeeded!");
-    #endif
 
     ROS_INFO("Body Tracker Started.");
     while (ros::ok())
-    {
+    {   
+        bool kill_sign=false;
+        ros::param::get("kill",kill_sign);
+        if(kill_sign){kill_process(tracker,device);}
         ros::spinOnce();
         // ROS_INFO("======================= FRAME %d =======================", frame_count);
         k4a_capture_t sensorCapture = nullptr;
@@ -373,19 +238,12 @@ void PlayFromDevice(InputSettings inputSettings, std::shared_ptr<TrackerNode> no
             //Release the bodyFrame
             k4abt_frame_release(bodyFrame);
         }
-        #ifdef ENABLE_DEFAULT_VISUALIZER
-        window3d.SetLayout3d(s_layoutMode);
-        window3d.SetJointFrameVisualization(s_visualizeJointFrame);
-        window3d.Render();
-        #endif
         frame_count++;
         rate.sleep();
     }
 
     std::cout << "Finished body tracking processing!" << std::endl;
-    #ifdef ENABLE_DEFAULT_VISUALIZER
-    window3d.Delete();
-    #endif
+    
     k4abt_tracker_shutdown(tracker);
     k4abt_tracker_destroy(tracker);
 
@@ -417,7 +275,6 @@ int main(int argc, char** argv)
     node->showInfo(inputSettings);
     PlayFromDevice(inputSettings, node,rate);
     
-    ROS_INFO("Program Stopped!\n");
     ros::shutdown();
     return 0;
 }

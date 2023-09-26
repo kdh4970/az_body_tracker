@@ -105,14 +105,19 @@ void TrackerNode::updateTransform(transformData input){
 	Eigen::AngleAxisd rollAngle(input.roll*(PI/180.0f), Eigen::Vector3d::UnitZ());
 	Eigen::AngleAxisd yawAngle(input.yaw*(PI/180.0f), Eigen::Vector3d::UnitY());
 	Eigen::AngleAxisd pitchAngle(input.pitch*(PI/180.0f), Eigen::Vector3d::UnitX());
-
+	Eigen::Matrix4f temp;
 	Eigen::Quaternion<double> q = rollAngle * yawAngle * pitchAngle;
-
+	constexpr float unit_mtomm = 1.0 / 1000.0f;
 	Eigen::Matrix3d rotationMatrix = q.matrix();
-	transform << rotationMatrix(0),rotationMatrix(1),rotationMatrix(2),input.x,
-				rotationMatrix(3),rotationMatrix(4),rotationMatrix(5),input.y,
-				rotationMatrix(6),rotationMatrix(7),rotationMatrix(8),input.z,
-				0,0,0,1;
+	temp << rotationMatrix(0), rotationMatrix(1), rotationMatrix(2), input.x,
+				rotationMatrix(3), rotationMatrix(4), rotationMatrix(5), input.y,
+				rotationMatrix(6), rotationMatrix(7), rotationMatrix(8), input.z,
+				0.0, 0.0, 0.0, 1.0;
+	scale << input.scale * unit_mtomm, 0.0, 0.0, 0.0,
+			0.0, input.scale * unit_mtomm, 0.0, 0.0,
+			0.0, 0.0, input.scale * unit_mtomm, 0.0,
+			0.0, 0.0, 0.0, 1.0;
+	transform = scale * temp;
 }
 
 k4a_result_t TrackerNode::getBodyMarker(const k4abt_body_t& body, visualization_msgs::MarkerPtr marker_msg, int jointType, ros::Time capture_time)
@@ -141,9 +146,9 @@ k4a_result_t TrackerNode::getBodyMarker(const k4abt_body_t& body, visualization_
 	marker_msg->scale.z = 0.05;
 	
 	constexpr float kMillimeterToMeter = 1.0 / 1000.0f;
-	temp << kMillimeterToMeter * position.v[0],
-			kMillimeterToMeter * position.v[1],
-			kMillimeterToMeter * position.v[2],
+	temp << position.v[0],
+			position.v[1],
+			position.v[2],
 			1.0f;
 
 	temp=transform*temp;
@@ -229,18 +234,13 @@ k4a_result_t TrackerNode::fillPointCloud(const k4a::image& pointcloud_image, sen
 		}
 		else
 		{
-			constexpr float kMillimeterToMeter = 1.0 / 1000.0f;
-			// *iter_x = kMillimeterToMeter * static_cast<float>(point_cloud_buffer[3 * i + 0]);
-			// *iter_y = kMillimeterToMeter * static_cast<float>(point_cloud_buffer[3 * i + 1]);
-			// *iter_z = kMillimeterToMeter * z;
-
 			// do added
-			temp << kMillimeterToMeter * static_cast<float>(point_cloud_buffer[3 * i + 0]),
-					kMillimeterToMeter * static_cast<float>(point_cloud_buffer[3 * i + 1]),
-					kMillimeterToMeter * z,
+			temp << static_cast<float>(point_cloud_buffer[3 * i + 0]),
+					static_cast<float>(point_cloud_buffer[3 * i + 1]),
+					z,
 					1.0f;
 
-			tf=transform*temp;
+			tf = transform * temp ;
 			*iter_x = tf[0];
 			*iter_y = tf[1];
 			*iter_z = tf[2];

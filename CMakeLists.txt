@@ -12,11 +12,10 @@ endif()
 list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_LIST_DIR}/cmake)
 set(glfw3_DIR "/usr/local/lib/cmake/glfw3")
 set(Eigen3_DIR "/usr/lib/cmake/eigen3")
-# set(azure_kinect_ros_driver_INCLUDE_DIRS "/home/jskimlab1804/catkin_ws/src/Azure_Kinect_ROS_Driver/include")
+set(azure_kinect_ros_driver_INCLUDE_DIRS "/home/kist/catkin_ws1/src/Azure_Kinect_ROS_Driver/include")
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
-add_subdirectory(window_controller_3d)
 # find dependencies
 find_package(catkin REQUIRED COMPONENTS
   rospy
@@ -39,8 +38,8 @@ generate_dynamic_reconfigure_options(cfg/az_body_tracker.cfg)
 catkin_package(
   CATKIN_DEPENDS rospy roscpp dynamic_reconfigure
 )
-find_package(k4a 1.4.1 QUIET MODULE REQUIRED)
-find_package(k4abt 1.1.2 QUIET MODULE REQUIRED)
+find_package(k4a 1.4.1 REQUIRED)
+find_package(k4abt 1.1.2 REQUIRED)
 message("include dir : '${azure_kinect_ros_driver_INCLUDE_DIRS}'")
 include_directories(${catkin_INCLUDE_DIRS} include src 
   ${azure_kinect_ros_driver_INCLUDE_DIRS}
@@ -49,13 +48,10 @@ include_directories(${catkin_INCLUDE_DIRS} include src
 
 add_executable(az_body_tracker src/az_body_tracker.cpp src/TrackerNode.cpp include/TrackerNode.h)
 
-## if you wanna see default visualizer(window_controller_3d), uncomment below line.
-# target_compile_definitions(az_body_tracker PUBLIC ENABLE_DEFAULT_VISUALIZER)
 add_dependencies(az_body_tracker azure_kinect_ros_driver_node)
 target_link_libraries(az_body_tracker 
 k4abt::k4abt 
-k4a::k4a 
-window_controller_3d::window_controller_3d
+k4a::k4a
 ${azure_kinect_ros_driver_LIBRARIES}
 # azure_kinect_ros_driver
 ${Eigen_LIBRARIES}
@@ -75,7 +71,3 @@ install(TARGETS az_body_tracker
   DESTINATION lib/${PROJECT_NAME})
 catkin_package(CATKIN_DEPENDS roscpp roslib message_runtime std_msgs sensor_msgs azbt_msgs visualization_msgs)
 
-catkin_install_python(PROGRAMS
-  scripts/transform_controller.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)

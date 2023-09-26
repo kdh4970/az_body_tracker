@@ -24,7 +24,7 @@
 
 struct transformData
 {
-  float roll{0.0f},pitch{0.0f},yaw{0.0f},x{0.0f},y{0.0f},z{0.0f};
+  float roll{0.0f},pitch{0.0f},yaw{0.0f},x{0.0f},y{0.0f},z{0.0f},scale{1.0f};
 };
 
 struct InputSettings
@@ -63,6 +63,7 @@ public:
   void updateTransform(transformData input);
   k4a_result_t getBodyMarker(const k4abt_body_t& body, visualization_msgs::MarkerPtr marker_msg, int jointType, ros::Time capture_time);
   Eigen::Matrix4f transform;
+  Eigen::Matrix4f scale;
   std::chrono::microseconds get_device_timestamp(const k4a_image_t k4a_depth_img);
   ros::Time timestampToROS(const std::chrono::microseconds& k4a_timestamp_us);
 private:
