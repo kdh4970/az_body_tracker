@@ -151,11 +151,11 @@ void VisualizeResult(k4abt_frame_t bodyFrame, k4a_transformation_t transformatio
         // publish data
         azbt_msgs::Elem elem;
         elem.body_id= body.id;
-        elem.length = ((world[2]*1000) / t.scale)+100;
+        elem.length = ((world[2]*1000) / t.scale)+150;
         elem.location_x = world[0]*1000;
         elem.location_y = world[1]*1000;
         msg.data.push_back(elem);
-        ROS_INFO("Target Length : %.2f",((world[2]*1000) / t.scale)+100);
+        ROS_INFO("Target Length : %.2f",((world[2]*1000) / t.scale)+150);
     }
 
 
