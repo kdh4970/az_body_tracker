@@ -1,9 +1,0 @@
-<launch>
-    <master auto="start"/>
-    <node pkg="az_body_tracker" name="az_body_tracker" type="az_body_tracker" output="screen">
-        <rosparam file="$(find az_body_tracker)/params/params.yaml" command="load" />
-    </node>
-    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find az_body_tracker)/cfg/bt_rviz.rviz" />
-    <node type="map_server" name="map_server" pkg="map_server" args="$(find az_body_tracker)/map/map_0925.yaml" />
-    <node type="rqt_gui" name="rqt_gui" pkg="rqt_gui" output="screen" />
-</launch>

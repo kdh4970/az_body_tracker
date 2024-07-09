@@ -9,65 +9,73 @@ endif()
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
 endif()
-list(INSERT CMAKE_MODULE_PATH 0 ${CMAKE_CURRENT_LIST_DIR}/cmake)
-set(glfw3_DIR "/usr/local/lib/cmake/glfw3")
-set(Eigen3_DIR "/usr/lib/cmake/eigen3")
-set(azure_kinect_ros_driver_INCLUDE_DIRS "/home/kist/catkin_ws1/src/Azure_Kinect_ROS_Driver/include")
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
+add_subdirectory(window_controller_3d)
 # find dependencies
-find_package(catkin REQUIRED COMPONENTS
-  rospy
-  roscpp
-  roslib
-  std_msgs
-  azbt_msgs
-  sensor_msgs
-  visualization_msgs
-  genmsg
-  Eigen3
-  message_generation
-  azure_kinect_ros_driver
-  dynamic_reconfigure
-)
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(glfw3 REQUIRED)
+# uncomment the following section in order to fill in
+# further dependencies manually.
+# find_package(<dependency> REQUIRED)
+#================================================================
+# Force running the Findk4a.cmake module
+find_package(k4a 1.4.0 REQUIRED)
 
-generate_messages(DEPENDENCIES std_msgs sensor_msgs azbt_msgs visualization_msgs)
-generate_dynamic_reconfigure_options(cfg/az_body_tracker.cfg)
-
-catkin_package(
-  CATKIN_DEPENDS rospy roscpp dynamic_reconfigure
-)
-find_package(k4a 1.4.1 REQUIRED)
+# Try to find and enable the body tracking SDK
 find_package(k4abt 1.1.2 REQUIRED)
-message("include dir : '${azure_kinect_ros_driver_INCLUDE_DIRS}'")
-include_directories(${catkin_INCLUDE_DIRS} include src 
-  ${azure_kinect_ros_driver_INCLUDE_DIRS}
-  ${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake
-  )
+# This reads the K4A_LIBS and K4A_INSTALL_REQUIRED variables and decides how to install
+# the various shared objects / DLLs
+#=================================================================
 
-add_executable(az_body_tracker src/az_body_tracker.cpp src/TrackerNode.cpp include/TrackerNode.h)
-
-add_dependencies(az_body_tracker azure_kinect_ros_driver_node)
-target_link_libraries(az_body_tracker 
+add_executable(main src/TrackerNode.cpp src/az_body_tracker.cpp)
+target_link_libraries(main 
 k4abt::k4abt 
-k4a::k4a
-${azure_kinect_ros_driver_LIBRARIES}
-# azure_kinect_ros_driver
-${Eigen_LIBRARIES}
-${catkin_LIBRARIES}
-)
+k4a::k4a 
+window_controller_3d::window_controller_3d
+glfw)
 
-target_include_directories(az_body_tracker 
-PUBLIC
-  ${azure_kinect_ros_driver_INCLUDE_DIRS}
+ament_target_dependencies(main rclcpp 
+  std_msgs)
+target_include_directories(main PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-  
-add_dependencies(az_body_tracker az_body_tracker_generate_messages_cpp)
-add_dependencies(az_body_tracker az_body_tracker_gencfg)
 
-install(TARGETS az_body_tracker
+
+
+add_executable(alpha src/TrackerNode.cpp src/az_body_tracker_test.cpp)
+target_link_libraries(alpha 
+k4abt::k4abt 
+k4a::k4a 
+window_controller_3d::window_controller_3d
+glfw)
+
+ament_target_dependencies(alpha rclcpp 
+  std_msgs)
+target_include_directories(alpha PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+
+
+install(TARGETS main
   DESTINATION lib/${PROJECT_NAME})
-catkin_package(CATKIN_DEPENDS roscpp roslib message_runtime std_msgs sensor_msgs azbt_msgs visualization_msgs)
 
+install(TARGETS alpha
+  DESTINATION lib/${PROJECT_NAME})
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  # the following line skips the linter which checks for copyrights
+  # uncomment the line when a copyright and license is not present in all source files
+  #set(ament_cmake_copyright_FOUND TRUE)
+  # the following line skips cpplint (only works in a git repo)
+  # uncomment the line when this package is not in a git repo
+  #set(ament_cmake_cpplint_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
+ament_package()
