@@ -6,7 +6,7 @@
 #include <array>
 #include <k4a/k4a.h>
 #include <k4abt.h>
-
+#include <string>
 #include "Utilities.h"
 
 const float MillimeterToMeter = 0.001f;

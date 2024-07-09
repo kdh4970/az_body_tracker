@@ -14,8 +14,13 @@
 
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>visualization_msgs</depend>
   <depend>K4A</depend>
   <depend>K4Abt</depend>
+  <depend>Eigen3</depend>
+  <build_depend>azbt_msgs</build_depend>
+  <depend>azure_kinect_ros_driver</depend>
 
   <export>
     <build_type>ament_cmake</build_type>
