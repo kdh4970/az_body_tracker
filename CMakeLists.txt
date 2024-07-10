@@ -17,7 +17,6 @@ endif()
 # You must change the following line to point to the location of the Azure Kinect ROS2 Driver
 set(azure_kinect_ros_driver_INCLUDE_DIRS "/home/do/ros2_ws/src/Azure_Kinect_ROS_Driver/include")
 
-add_subdirectory(window_controller_3d)
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
