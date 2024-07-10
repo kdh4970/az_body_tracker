@@ -6,8 +6,9 @@
 
 ### 0. Prerequisite  
 
-Azure Kinect SDK - libk4a 1.4.1
-Azure Kinect Body Tracking SDK - libk4abt 1.1.2
+ROS2 foxy  
+Azure Kinect SDK - libk4a 1.4.1  
+Azure Kinect Body Tracking SDK - libk4abt 1.1.2  
 
 ### 1. Clone the needed message repo and this repo into your ROS2 workspace.  
 
