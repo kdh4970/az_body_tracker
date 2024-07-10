@@ -1,0 +1,10 @@
+debug: false
+pitch: 169.1999969482422
+preset_path: /home/do/ros2_ws/src/az_body_tracker/params/preset.yaml
+roll: -77.5999984741211
+scale: 1.0
+use_sim_time: false
+x: -1100.099609375
+y: -1180.099609375
+yaw: -53.0
+z: 1550.0

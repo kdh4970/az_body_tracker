@@ -25,7 +25,6 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(azbt_msgs REQUIRED)
-find_package(ament_index_cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(k4a 1.4.1 REQUIRED)
 find_package(k4abt 1.1.2 REQUIRED)
@@ -49,6 +48,10 @@ target_link_libraries(az_body_tracker
 
 install(TARGETS az_body_tracker
   DESTINATION lib/${PROJECT_NAME})
+
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}/
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

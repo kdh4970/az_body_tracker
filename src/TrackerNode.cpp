@@ -7,9 +7,8 @@ TrackerNode::TrackerNode()
 	bt_pub = this->create_publisher<azbt_msgs::msg::BtMultiArray>("bt_result",1);
 	pcl_pub = this->create_publisher<sensor_msgs::msg::PointCloud2>("depth_pcl",1);
 	body_marker_publisher = this->create_publisher<visualization_msgs::msg::MarkerArray>("joint_marker",1);
-
+	this->declare_parameter("preset_path", "../params/preset.yaml");
 	this->declare_parameter("debug", debug);
-	this->declare_parameter("publish_hz", pub_hz);
 	this->declare_parameter("roll", 0.0f);
 	this->declare_parameter("pitch", 0.0f);
 	this->declare_parameter("yaw", 0.0f);
@@ -17,10 +16,8 @@ TrackerNode::TrackerNode()
 	this->declare_parameter("y", 0.0f);
 	this->declare_parameter("z", 0.0f);
 	this->declare_parameter("scale", 1.0f);
-
 	this->set_on_parameters_set_callback(std::bind(&TrackerNode::parametersCallback, this, std::placeholders::_1));
-
-	readTransformPreset();
+	this->readTransformPreset();
 }
 
 TrackerNode::~TrackerNode()
@@ -30,12 +27,13 @@ TrackerNode::~TrackerNode()
 
 void TrackerNode::readTransformPreset()
 {
+	std::string presetPath = this->get_parameter("preset_path").as_string();
 	// may throw ament_index_cpp::PackageNotFoundError exception
-	std::string presetPath = ament_index_cpp::get_package_share_directory("az_body_tracker")+"/params/preset.yaml";
+	// std::string presetPath = ament_index_cpp::get_package_share_directory("az_body_tracker")+"/params/preset.yaml";
     RCLCPP_INFO(this->get_logger(),"Reading Saved Preset... : %s",presetPath.c_str());
     std::ifstream readFile(presetPath);
     if(readFile.is_open()){
-        RCLCPP_INFO("File reading success");
+        RCLCPP_INFO(this->get_logger(),"File reading success");
         std::string line;
         while(getline(readFile,line))
         {
@@ -152,7 +150,7 @@ k4a_result_t TrackerNode::getBodyMarker(const k4abt_body_t& body, visualization_
 	// New markers with the same ID will replace old markers as soon as they arrive.
 	marker_msg.lifetime = rclcpp::Duration(0.25);
 	marker_msg.id = body.id * 100 + jointType;
-	marker_msg.type = visualization_msgs::Marker::SPHERE;
+	marker_msg.type = visualization_msgs::msg::Marker::SPHERE;
 
 	Color color = BODY_COLOR_PALETTE[body.id % BODY_COLOR_PALETTE.size()];
 
@@ -218,8 +216,7 @@ void TrackerNode::initializeTimestampOffset(const std::chrono::microseconds& k4a
 
 	device_to_realtime_offset_ = realtime_clock - k4a_device_timestamp_us;
 
-	RCLCPP_WARN(this->get_logger(),"Initializing the device to realtime offset based on wall clock: "
-					<< device_to_realtime_offset_.count() << " ns");
+	RCLCPP_WARN(this->get_logger(),"Initializing the device to realtime offset based on wall clock: %d ns",device_to_realtime_offset_.count());
 }
 
 k4a_result_t TrackerNode::fillPointCloud(const k4a::image& pointcloud_image, sensor_msgs::msg::PointCloud2& point_cloud)

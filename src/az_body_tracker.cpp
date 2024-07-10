@@ -7,11 +7,9 @@
 
 #include "TrackerNode.h"
 
-bool debug=true;
 sensor_msgs::msg::PointCloud2 point_cloud;
 transformData t;
 uint16_t frame_count = 0;
-bool tfupdateRequire = true;
 #define VERIFY(result, error)                                                                            \
     if(result != K4A_RESULT_SUCCEEDED)                                                                   \
     {                                                                                                    \
@@ -19,6 +17,7 @@ bool tfupdateRequire = true;
         exit(1);                                                                                         \
     }                                                                                                    \
 
+// deprecated
 void kill_process(k4abt_tracker_t tracker, k4a_device_t device){
     std::cout << "Terminating the process..." << std::endl;
     k4abt_tracker_shutdown(tracker);
@@ -30,11 +29,11 @@ void kill_process(k4abt_tracker_t tracker, k4a_device_t device){
     // exit(0);
 }
 
-void VisualizeResult(k4abt_frame_t bodyFrame, k4a_transformation_t transformation, int depthWidth, int depthHeight, std::shared_ptr<TrackerNode> node) {
+void VisualizeResult(k4abt_frame_t bodyFrame, k4a_transformation_t transformation, std::shared_ptr<TrackerNode> node) {
     // Obtain original capture that generates the body tracking result
     k4a_capture_t originalCapture = k4abt_frame_get_capture(bodyFrame);
     k4a_image_t depthImage = k4a_capture_get_depth_image(originalCapture);
-    if(tfupdateRequire) {node->updateTransform();tfupdateRequire=false;}
+    if(node->tfupdateRequire) {node->updateTransform();node->tfupdateRequire=false;}
     // pcl 
     rclcpp::Time capture_time = node->timestampToROS(node->get_device_timestamp(depthImage));
     k4a_result_t result = node->getPointCloud(transformation,depthImage, point_cloud, capture_time);
@@ -47,7 +46,7 @@ void VisualizeResult(k4abt_frame_t bodyFrame, k4a_transformation_t transformatio
     }
     
     uint32_t numBodies = k4abt_frame_get_num_bodies(bodyFrame);
-    if(debug) RCLCPP_INFO(node->get_logger(),"Detected numBodies: %d", numBodies);
+    if(node->debug) RCLCPP_INFO(node->get_logger(),"Detected numBodies: %d", numBodies);
 
     //gen msg
     azbt_msgs::msg::BtMultiArray msg;
@@ -83,28 +82,22 @@ void VisualizeResult(k4abt_frame_t bodyFrame, k4a_transformation_t transformatio
         }
         
         k4a_float3_t JointHead=body.skeleton.joints[K4ABT_JOINT_HEAD].position;
-        if(debug){
+        if(node->debug){
             // ROS_INFO("Joint PELVIS Position: x: %f, y: %f, z: %f", body.skeleton.joints[K4ABT_JOINT_PELVIS].position.v[0], body.skeleton.joints[K4ABT_JOINT_PELVIS].position.v[1], body.skeleton.joints[K4ABT_JOINT_PELVIS].position.v[2]);
-            RCLCPP_INFO(node->get_logger(),"Joint HEAD Position: x: %f, y: %f, z: %f", JointHead.v[0], JointHead.v[1], JointHead.v[2]);
+            RCLCPP_INFO(node->get_logger(),"Joint HEAD Position in Camera: %.4f, %.4f, %.4f", JointHead.v[0], JointHead.v[1], JointHead.v[2]);
             // ROS_INFO("Joint LEFTFOOT Position: x: %f, y: %f, z: %f", body.skeleton.joints[K4ABT_JOINT_FOOT_LEFT].position.v[0], body.skeleton.joints[K4ABT_JOINT_FOOT_LEFT].position.v[1], body.skeleton.joints[K4ABT_JOINT_FOOT_LEFT].position.v[2]);
             // ROS_INFO("Joint RIGHTFOOT Position: x: %f, y: %f, z: %f", body.skeleton.joints[K4ABT_JOINT_FOOT_RIGHT].position.v[0], body.skeleton.joints[K4ABT_JOINT_FOOT_RIGHT].position.v[1], body.skeleton.joints[K4ABT_JOINT_FOOT_RIGHT].position.v[2]);
         }
 
         Eigen::Vector4f world, DepthJointHead;
-        // k4a_float3_t joint_in_color_3d;
-        // transform_joint_from_depth_3d_to_color_3d(
-        //     &sensor_calibration, 
-        //     body.skeleton.joints[K4ABT_JOINT_HEAD].position,
-        //     joint_in_color_3d);
             
         DepthJointHead << JointHead.v[0],JointHead.v[1],JointHead.v[2],1.0f;
-        // world = Extr.inverse() * DepthJointHead;
         world = node->transform * DepthJointHead;
         
         // estimate body length in world coordinate : ground_to_chessboard + chessboard_to_head + head_to_top
-        if(debug){
-            RCLCPP_INFO(node->get_logger(),"world Head : %f, %f, %f, %f\n",world[0],world[1],world[2],world[3]);
-            RCLCPP_INFO(node->get_logger(),"[body_length] : %f\n", world[2]*1000);
+        if(node->debug){
+            RCLCPP_INFO(node->get_logger(),"Joint Head Position in World: %.4f, %.4f, %.4f",world[0],world[1],world[2]);
+            RCLCPP_INFO(node->get_logger(),"Estimated distance from floor to HEAD joint : %.2fmm", world[2]*1000);
         }
         // publish data
         azbt_msgs::msg::Bt elem;
@@ -113,7 +106,7 @@ void VisualizeResult(k4abt_frame_t bodyFrame, k4a_transformation_t transformatio
         elem.location_x = world[0]*1000;
         elem.location_y = world[1]*1000;
         msg.data.push_back(elem);
-        RCLCPP_INFO(node->get_logger(),"Target Length : %.2f",((world[2]*1000) / t.scale)+150);
+        RCLCPP_INFO(node->get_logger(),"Target Length : %.2fmm",((world[2]*1000) / t.scale)+150);
     }
 
 
@@ -124,7 +117,7 @@ void VisualizeResult(k4abt_frame_t bodyFrame, k4a_transformation_t transformatio
     k4a_image_release(depthImage);
 }
 
-void PlayFromDevice(InputSettings inputSettings, std::shared_ptr<TrackerNode> node, rclcpp::Rate rate) 
+void PlayFromDevice(InputSettings inputSettings, std::shared_ptr<TrackerNode> node) 
 {
     k4a_device_t device = nullptr;
     VERIFY(k4a_device_open(0, &device), "Open K4A Device failed!"); RCLCPP_INFO(node->get_logger(),"Open K4A Device succeeded.");
@@ -159,13 +152,19 @@ void PlayFromDevice(InputSettings inputSettings, std::shared_ptr<TrackerNode> no
     rclcpp::executors::SingleThreadedExecutor executor;
     executor.add_node(node);
 
+    RCLCPP_INFO(node->get_logger(),"Entering Main Loop...");
+    RCLCPP_INFO(node->get_logger(),"Few invalid frames will be dropped until the tracker is fully initialized.");
+    RCLCPP_INFO(node->get_logger(),"Press Ctrl-C to Exit...");
+
     while (rclcpp::ok())
     {   
-        bool kill_sign=false;
-        ros::param::get("kill",kill_sign);
-        if(kill_sign){kill_process(tracker,device);}
+        // deprecated kill signal
+        // bool kill_sign=false;
+        // rclcpp::param::get("kill",kill_sign);
+        // if(kill_sign){kill_process(tracker,device);}
+
         executor.spin_once(std::chrono::milliseconds(0));
-        // ROS_INFO("======================= FRAME %d =======================", frame_count);
+        
         k4a_capture_t sensorCapture = nullptr;
         k4a_wait_result_t getCaptureResult = k4a_device_get_capture(device, &sensorCapture, 0); // timeout_in_ms is set to 0
         if (getCaptureResult == K4A_WAIT_RESULT_SUCCEEDED)
@@ -194,13 +193,16 @@ void PlayFromDevice(InputSettings inputSettings, std::shared_ptr<TrackerNode> no
         k4a_wait_result_t popFrameResult = k4abt_tracker_pop_result(tracker, &bodyFrame, 0); // timeout_in_ms is set to 0
         if (popFrameResult == K4A_WAIT_RESULT_SUCCEEDED)
         {
+            RCLCPP_INFO(node->get_logger(),"======================= FRAME %d =======================", frame_count);
             /************* Successfully get a body tracking result, process the result here ***************/
-            VisualizeResult(bodyFrame,transformation, depthWidth, depthHeight, node);
+            VisualizeResult(bodyFrame,transformation, node);
             //Release the bodyFrame
             k4abt_frame_release(bodyFrame);
+            frame_count++;
         }
-        frame_count++;
-        rate.sleep();
+        
+        
+        // rate.sleep();
     }
 
     std::cout << "Finished body tracking processing!" << std::endl;
@@ -212,22 +214,16 @@ void PlayFromDevice(InputSettings inputSettings, std::shared_ptr<TrackerNode> no
     k4a_device_close(device);
 }
 
-
-
-
 int main(int argc, char** argv)
 {
     rclcpp::init(argc,argv);
     InputSettings inputSettings;
     auto node = std::make_shared<TrackerNode>();
 
-    RCLCPP_INFO("node started!");
-
-    debug=node->debug;
-    rclcpp::Rate rate(node->pub_hz);
+    RCLCPP_INFO(node->get_logger(),"node started!");
 
     node->showInfo(inputSettings);
-    PlayFromDevice(inputSettings, node,rate);
+    PlayFromDevice(inputSettings, node);
     
     rclcpp::shutdown();
     return 0;

@@ -8,12 +8,11 @@
 #include "azbt_msgs/msg/bt_multi_array.hpp"
 #include <vector>
 #include <eigen3/Eigen/Dense>
-
-// 수정필요
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include "sensor_msgs/point_cloud2_iterator.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include <chrono>
+#include <fstream>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 #include <BodyTrackingHelpers.h>
@@ -48,29 +47,28 @@ static const ColorPalette BODY_COLOR_PALETTE{ { { 1.0f, 0.0f, 0.0f, 1.0f },
 class TrackerNode : public rclcpp::Node
 {
 public:
-  
   bool debug;
-  int pub_hz;
+  bool tfupdateRequire = true;
   k4a::image point_cloud_image;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pcl_pub;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr body_marker_publisher;
   rclcpp::Publisher<azbt_msgs::msg::BtMultiArray>::SharedPtr bt_pub;
+  Eigen::Matrix4f transform;
+  Eigen::Matrix4f scale;
   k4a_transformation_t transformation;
   TrackerNode();
   ~TrackerNode();
-  void pclbuffer(int depth_width, int depth_height);
   void showInfo(InputSettings& inputSettings);
-  k4a_result_t getPointCloud(const k4a_transformation_t tf_handle , const k4a_image_t k4a_depth_frame, sensor_msgs::msg::PointCloud2& point_cloud, rclcpp::Time capture_time);
+  void readTransformPreset();
   void updateTransform();
+  void pclbuffer(int depth_width, int depth_height);
+  k4a_result_t getPointCloud(const k4a_transformation_t tf_handle , const k4a_image_t k4a_depth_frame, sensor_msgs::msg::PointCloud2& point_cloud, rclcpp::Time capture_time);
   k4a_result_t getBodyMarker(const k4abt_body_t& body, visualization_msgs::msg::Marker &marker_msg, int jointType, rclcpp::Time capture_time);
-  Eigen::Matrix4f transform;
-  Eigen::Matrix4f scale;
   rclcpp::Time timestampToROS(const std::chrono::microseconds& k4a_timestamp_us);
   std::chrono::microseconds get_device_timestamp(const k4a_image_t k4a_depth_img);
-  
+
 private:
   transformData _t;
-  bool tfupdateRequire = true;
   std::string pub_frame;
   void initializeTimestampOffset(const std::chrono::microseconds& k4a_device_timestamp_us);
   k4a_result_t fillPointCloud(const k4a::image& pointcloud_image, sensor_msgs::msg::PointCloud2& point_cloud);
@@ -82,6 +80,9 @@ private:
     result.reason = "success";
     for (const auto &parameter : parameters)
     {
+      if(parameter.get_name() == "debug" && parameter.get_type() == rclcpp::ParameterType::PARAMETER_BOOL){
+        debug = parameter.as_bool();
+      }
       if (parameter.get_name() == "roll" && parameter.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE){
         _t.roll = parameter.as_double();
       }
@@ -104,12 +105,18 @@ private:
         _t.scale = parameter.as_double();
       }
     }
-    if(debug)
-    {
-      RCLCPP_INFO(this->get_logger(),"parameter callback >> roll %f, pitch %f, yaw %f",_t.roll,_t.pitch,_t.yaw);
-      RCLCPP_INFO(this->get_logger(),"parameter callback >> x %f, y %f, z %f",_t.x,_t.y,_t.z);
-      RCLCPP_INFO(this->get_logger(),"parameter callback >> scale %f",_t.scale);
-    }
+    // if(debug)
+    // {
+      RCLCPP_INFO(this->get_logger(),"Updating new parameters...");
+      RCLCPP_INFO(this->get_logger(),">> debug : %d",debug);
+      RCLCPP_INFO(this->get_logger(),">> roll %.lf",_t.roll);
+      RCLCPP_INFO(this->get_logger(),">> pitch %.lf",_t.pitch);
+      RCLCPP_INFO(this->get_logger(),">> yaw %.lf",_t.yaw);
+      RCLCPP_INFO(this->get_logger(),">> x %.lf",_t.x);
+      RCLCPP_INFO(this->get_logger(),">> y %.lf",_t.y);
+      RCLCPP_INFO(this->get_logger(),">> z %.lf",_t.z);
+      RCLCPP_INFO(this->get_logger(),">> scale %.lf",_t.scale);
+    // }
     tfupdateRequire = true;
     return result;
   }  
